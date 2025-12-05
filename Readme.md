@@ -71,7 +71,6 @@ DB_NAME=velora
 CORS_ORIGINS=http://localhost:3005
 
 # GitHub Integration (Required for repo creation)
-GITHUB_TOKEN=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
 
 # Docker Hub Integration (Required for image pushing)
 DOCKER_USERNAME=your_dockerhub_username_here
