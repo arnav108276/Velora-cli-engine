@@ -148,40 +148,91 @@ async function pushFolderToRepo({ token, owner, name, folderPath }) {
   const stat = fs.statSync(abs);
   if (!stat.isDirectory()) throw new Error('Provided path must be a directory');
 
-  const git = simpleGit({ baseDir: abs });
-  const isRepo = await git.checkIsRepo();
-  if (!isRepo) await git.init();
+  // FIX: Check if the folder itself has a .git directory (parent git repo)
+  const gitDirInFolder = path.join(abs, '.git');
+  const hasGitInFolder = fs.existsSync(gitDirInFolder);
+  
+  // FIX: Initialize git with explicit working directory to avoid parent git repo interference
+  const git = simpleGit({ 
+    baseDir: abs,
+    binary: 'git',
+    maxConcurrentProcesses: 6,
+  });
+  
+  // FIX: If there's already a .git in this folder, check if it's linked to a parent repo
+  // We need to ensure we're working in an isolated git environment
+  if (hasGitInFolder) {
+    // Check if this is a submodule or part of parent repo
+    try {
+      const topLevel = await git.raw(['rev-parse', '--show-toplevel']);
+      const topLevelPath = topLevel.trim();
+      
+      // If the top level is not our target folder, we have a parent git repo issue
+      if (path.resolve(topLevelPath) !== path.resolve(abs)) {
+        console.log(chalk.yellow(`⚠️  Detected parent git repository. Reinitializing in target folder only...`));
+        // Remove the git reference and reinitialize
+        fs.rmSync(gitDirInFolder, { recursive: true, force: true });
+        await git.init();
+      }
+    } catch (err) {
+      // If error checking, just reinitialize to be safe
+      await git.init();
+    }
+  } else {
+    // FIX: No .git exists, initialize fresh repo
+    await git.init();
+  }
 
-  try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch (_) {}
+  // FIX: Ensure we're on main branch from the start
+  try { 
+    await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); 
+  } catch (_) {
+    // If branch doesn't exist yet, it will be created on first commit
+  }
 
+  // Create .gitignore if not exists
   const giPath = path.join(abs, '.gitignore');
   if (!fs.existsSync(giPath)) {
     fs.writeFileSync(giPath, 'node_modules\\n.DS_Store\\n.env\\n');
   }
 
+  // FIX: Add all files from THIS directory only
   await git.add('.');
+  
+  // FIX: Check status before committing
   const status = await git.status();
-  if (status.staged.length > 0 || !isRepo) {
+  if (status.staged.length > 0 || status.not_added.length > 0 || status.modified.length > 0) {
     await git.commit('Initial commit: import via Velora CLI');
   }
 
   const remoteWithToken = `https://${token}@github.com/${owner}/${name}.git`;
   const remoteNoToken = `https://github.com/${owner}/${name}.git`;
 
+  // FIX: Clean up any existing remotes
   const remotes = await git.getRemotes(true);
-  if (remotes.find(r => r.name === 'origin')) await git.removeRemote('origin');
+  for (const remote of remotes) {
+    if (remote.name === 'origin') {
+      await git.removeRemote('origin');
+    }
+  }
+  
+  // Add new remote
   await git.addRemote('origin', remoteWithToken);
 
-try { await git.raw(['branch', '-M', 'main']); } catch (_) {}
+  // FIX: Ensure we're on main branch before pushing
+  try { 
+    await git.raw(['branch', '-M', 'main']); 
+  } catch (_) {}
 
-try {
-  await git.push(['-u', 'origin', 'main', '--force']);
-} catch (err) {
-  console.error(chalk.red(`Git push failed: ${err.message}`));
-  throw err;
-}
+  // FIX: Push only the current folder's content
+  try {
+    await git.push(['-u', 'origin', 'main', '--force']);
+  } catch (err) {
+    console.error(chalk.red(`Git push failed: ${err.message}`));
+    throw err;
+  }
 
-
+  // Clean up: replace token with public URL
   await git.removeRemote('origin');
   await git.addRemote('origin', remoteNoToken);
 
@@ -332,6 +383,20 @@ const createCommand = new Command('create')
           }
           
           const abs = path.isAbsolute(options.location) ? options.location : path.resolve(process.cwd(), options.location);
+          
+          // FIX: Verify the path exists and is a directory
+          if (!fs.existsSync(abs)) {
+            console.error(chalk.red(`❌ Path not found: ${abs}`));
+            process.exit(1);
+          }
+          
+          const stat = fs.statSync(abs);
+          if (!stat.isDirectory()) {
+            console.error(chalk.red(`❌ Path must be a directory: ${abs}`));
+            process.exit(1);
+          }
+          
+          console.log(chalk.blue(`📁 Using folder: ${abs}`));
           
           // Ensure Dockerfile exists
           await ensureDockerfile(abs, options.type);
