@@ -7,12 +7,18 @@ import {
   Settings, 
   Database,
   Rocket,
-  GitBranch,
-  Package
+  GitBranch
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const BACKEND_URL ='http://localhost:8002';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8002';
+const USER_HASH = process.env.REACT_APP_USER_HASH;
+
+// COMMON HEADERS
+const headers = {
+  "Content-Type": "application/json",
+  "x-user-hash": USER_HASH,
+};
 
 const serviceTypes = [
   {
@@ -51,35 +57,50 @@ const serviceTypes = [
 
 export default function CreateService() {
   const navigate = useNavigate();
+
   const [step, setStep] = useState(1);
+  const [developers, setDevelopers] = useState([]);
+  const [creating, setCreating] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     service_type: '',
-    developer_id: 'default-developer' // In a real app, this would come from auth
+    developer_id: '',
   });
-  const [developers, setDevelopers] = useState([]);
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetchDevelopers();
   }, []);
 
+  // -----------------------------
+  // LOAD DEVELOPERS
+  // -----------------------------
   const fetchDevelopers = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/developers`);
+      const response = await fetch(`${BACKEND_URL}/api/developers`, {
+        headers,
+      });
+
       const data = await response.json();
-      setDevelopers(data);
-      
-      // Set first developer as default if available
-      if (data.length > 0) {
-        setFormData(prev => ({ ...prev, developer_id: data[0].id }));
+
+      // Prevent frontend crash
+      const safeData = Array.isArray(data) ? data : [];
+
+      setDevelopers(safeData);
+
+      if (safeData.length > 0) {
+        setFormData(prev => ({ ...prev, developer_id: safeData[0].id }));
       }
     } catch (error) {
-      console.error('Failed to fetch developers:', error);
+      console.error("Failed to load developers", error);
+      setDevelopers([]); // fallback
     }
   };
 
+  // -----------------------------
+  // FORM CHANGE
+  // -----------------------------
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -90,301 +111,179 @@ export default function CreateService() {
     setStep(2);
   };
 
+  // -----------------------------
+  // VALIDATE
+  // -----------------------------
   const validateForm = () => {
-    if (!formData.name.trim()) {
-      toast.error('Service name is required');
-      return false;
-    }
-    
-    if (!formData.description.trim()) {
-      toast.error('Service description is required');
-      return false;
-    }
-    
-    if (!formData.service_type) {
-      toast.error('Service type is required');
-      return false;
-    }
-    
+    if (!formData.name.trim()) return toast.error("Service name required");
+    if (!formData.description.trim()) return toast.error("Description required");
+    if (!formData.service_type) return toast.error("Select service type");
+
     if (!/^[a-z0-9-]+$/.test(formData.name)) {
-      toast.error('Service name must contain only lowercase letters, numbers, and hyphens');
-      return false;
+      return toast.error("Name must be lowercase, numbers, hyphens");
     }
-    
     return true;
   };
 
+  // -----------------------------
+  // SUBMIT
+  // -----------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+
+    if (!validateForm()) return;
 
     setCreating(true);
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/services`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: "POST",
+        headers,
         body: JSON.stringify(formData),
       });
 
       if (response.ok) {
         const service = await response.json();
-        toast.success('Service created successfully! Pipeline started.');
+        toast.success("Service created successfully!");
         navigate(`/services/${service.id}`);
       } else {
-        const error = await response.json();
-        toast.error(error.detail || 'Failed to create service');
+        const err = await response.json();
+        toast.error(err.detail || "Failed to create service");
       }
     } catch (error) {
-      console.error('Failed to create service:', error);
-      toast.error('Failed to create service');
+      console.error(error);
+      toast.error("Request failed");
     } finally {
       setCreating(false);
     }
   };
 
-  const selectedServiceType = serviceTypes.find(type => type.id === formData.service_type);
+  const selectedServiceType = serviceTypes.find(s => s.id === formData.service_type);
 
+  // -------------------------------------
+  // UI STARTS HERE
+  // -------------------------------------
   return (
     <div className="p-8">
+
       {/* Header */}
       <div className="flex items-center mb-8">
-        <button
-          onClick={() => navigate('/services')}
-          className="flex items-center text-gray-600 hover:text-gray-900 mr-4"
-        >
-          <ArrowLeft className="h-5 w-5 mr-1" />
-          Back to Services
+        <button onClick={() => navigate('/services')} className="flex items-center text-gray-600">
+          <ArrowLeft className="h-5 w-5 mr-1" /> Back
         </button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Create New Service</h1>
-          <p className="text-gray-600 mt-1">Deploy a new service with automated CI/CD pipeline</p>
-        </div>
+        <h1 className="text-3xl font-bold ml-4">Create New Service</h1>
       </div>
 
-      {/* Progress Steps */}
-      <div className="mb-8">
-        <div className="flex items-center">
-          <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-            step >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-          } font-semibold`}>
-            1
-          </div>
-          <div className={`flex-1 h-1 mx-4 ${step >= 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
-          <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-            step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-          } font-semibold`}>
-            2
-          </div>
-        </div>
-        <div className="flex justify-between mt-2">
-          <span className="text-sm text-gray-600">Choose Service Type</span>
-          <span className="text-sm text-gray-600">Configure Service</span>
-        </div>
-      </div>
-
+      {/* STEP VIEW */}
       {step === 1 && (
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Choose Service Type</h2>
+        <>
+          <h2 className="text-xl font-semibold mb-6">Choose Service Type</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {serviceTypes.map((type) => (
+            {serviceTypes.map(type => (
               <div
                 key={type.id}
+                className="p-6 border rounded-lg hover:border-blue-500 cursor-pointer"
                 onClick={() => handleServiceTypeSelect(type.id)}
-                className="p-6 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition-all group"
               >
                 <div className="flex items-start space-x-4">
-                  <div className={`p-3 rounded-lg ${type.color} group-hover:scale-110 transition-transform`}>
+                  <div className={`p-3 rounded-lg ${type.color}`}>
                     <type.icon className="h-6 w-6 text-white" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{type.name}</h3>
-                    <p className="text-gray-600 mb-4">{type.description}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {type.features.map((feature, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
-                        >
-                          {feature}
-                        </span>
-                      ))}
-                    </div>
+                  <div>
+                    <h3 className="font-semibold">{type.name}</h3>
+                    <p className="text-gray-600">{type.description}</p>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </>
       )}
 
       {step === 2 && (
-        <div>
-          <div className="flex items-center mb-6">
-            <button
-              onClick={() => setStep(1)}
-              className="flex items-center text-gray-600 hover:text-gray-900 mr-4"
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-            </button>
-            <h2 className="text-xl font-semibold text-gray-900">Configure Service</h2>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* FORM */}
+          <div className="bg-white p-6 border rounded-lg">
+            <form onSubmit={handleSubmit} className="space-y-6">
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Form */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Service Name */}
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                    Service Name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="my-awesome-service"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Use lowercase letters, numbers, and hyphens only
-                  </p>
-                </div>
+              <div>
+                <label className="block mb-2 text-sm font-medium">Service Name</label>
+                <input
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="w-full border px-3 py-2 rounded-lg"
+                  placeholder="my-awesome-api"
+                  required
+                />
+              </div>
 
-                {/* Description */}
-                <div>
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    id="description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    placeholder="Describe what this service does..."
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block mb-2 text-sm font-medium">Description</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className="w-full border px-3 py-2 rounded-lg"
+                  rows={3}
+                  required
+                />
+              </div>
 
-                {/* Developer */}
-                <div>
-                  <label htmlFor="developer_id" className="block text-sm font-medium text-gray-700 mb-2">
-                    Developer
-                  </label>
-                  <select
-                    id="developer_id"
-                    name="developer_id"
-                    value={formData.developer_id}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    {developers.map((developer) => (
-                      <option key={developer.id} value={developer.id}>
-                        {developer.name} ({developer.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              <div>
+                <label className="block mb-2 text-sm font-medium">Developer</label>
+                <select
+                  name="developer_id"
+                  value={formData.developer_id}
+                  onChange={handleInputChange}
+                  className="w-full border px-3 py-2 rounded-lg"
+                  required
                 >
-                  {creating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Creating Service...
-                    </>
-                  ) : (
-                    <>
-                      <Rocket className="h-5 w-5 mr-2" />
-                      Create Service
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
+                  {developers.map(dev => (
+                    <option key={dev.id} value={dev.id}>
+                      {dev.name} ({dev.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Preview */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Service Preview</h3>
-              
-              {selectedServiceType && (
-                <div className="space-y-4">
-                  {/* Service Type */}
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-lg ${selectedServiceType.color}`}>
-                      <selectedServiceType.icon className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{selectedServiceType.name}</p>
-                      <p className="text-sm text-gray-600">{formData.name || 'Service Name'}</p>
-                    </div>
+              <button
+                type="submit"
+                disabled={creating}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg"
+              >
+                {creating ? "Creating..." : "Create Service"}
+              </button>
+
+            </form>
+          </div>
+
+          {/* PREVIEW */}
+          <div className="bg-white p-6 border rounded-lg">
+            <h3 className="text-lg font-semibold mb-4">Preview</h3>
+
+            {selectedServiceType && (
+              <>
+                <div className="flex items-center space-x-3">
+                  <div className={`p-3 rounded-lg ${selectedServiceType.color}`}>
+                    <selectedServiceType.icon className="h-6 w-6 text-white" />
                   </div>
-
-                  {/* Description */}
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-700">
-                      {formData.description || 'Service description will appear here'}
-                    </p>
-                  </div>
-
-                  {/* What Will Be Created */}
                   <div>
-                    <h4 className="font-medium text-gray-900 mb-3">What will be created:</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <GitBranch className="h-4 w-4" />
-                        <span>GitHub repository with starter code</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <Docker className="h-4 w-4" />
-                        <span>Docker image and container setup</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <Settings className="h-4 w-4" />
-                        <span>CI/CD pipeline with Jenkins</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <Rocket className="h-4 w-4" />
-                        <span>Kubernetes deployment</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Features */}
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Included features:</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedServiceType.features.map((feature, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
-                        >
-                          {feature}
-                        </span>
-                      ))}
-                    </div>
+                    <p className="font-bold">{selectedServiceType.name}</p>
+                    <p className="text-gray-600">{formData.name || "Service Name"}</p>
                   </div>
                 </div>
-              )}
-            </div>
+
+                <p className="mt-4 text-gray-700">
+                  {formData.description || "Service description will appear here."}
+                </p>
+              </>
+            )}
           </div>
+
         </div>
       )}
+
     </div>
   );
 }

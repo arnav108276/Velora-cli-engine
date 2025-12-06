@@ -10,13 +10,13 @@ import {
   AlertCircle 
 } from 'lucide-react';
 
-const BACKEND_URL ='http://localhost:8002';
-const USER_HASH = process.env.REACT_APP_USER_HASH;    // 🔥 NEW
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8002';
+const USER_HASH = process.env.REACT_APP_USER_HASH || "CHANGE_ME_HASH";
 
-// 🔥 Standard header for all backend calls
+// Shared headers for all API calls
 const getHeaders = () => ({
   "Content-Type": "application/json",
-  "x-user-hash": USER_HASH
+  "x-user-hash": USER_HASH,
 });
 
 export default function Dashboard() {
@@ -30,24 +30,25 @@ export default function Dashboard() {
   const fetchAnalytics = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/analytics/dashboard`, {
-        headers: getHeaders()
+        headers: getHeaders(),
       });
 
+      if (response.status === 401) {
+        console.error("Unauthorized: Missing or incorrect x-user-hash");
+        throw new Error("Unauthorized");
+      }
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP Error ${response.status}`);
       }
 
       const data = await response.json();
-
-      if (data && data.total_services === 0 && data.total_developers === 0 && data.recent_activities?.length === 0) {
-        console.log("Analytics data is empty, but request succeeded.");
-      }
-
       setAnalytics(data);
 
     } catch (error) {
-      console.error('Failed to fetch analytics:', error);
+      console.error("Failed to fetch analytics:", error);
 
+      // Provide a graceful fallback
       setAnalytics({
         total_services: 0,
         total_developers: 0,
@@ -136,9 +137,8 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Charts */}
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        
         {/* Services by Type */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Services by Type</h3>
@@ -178,7 +178,6 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-
       </div>
 
       {/* Recent Activities */}

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Server, 
   Globe, 
   Settings, 
@@ -16,13 +15,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const BACKEND_URL ='http://localhost:8002';
-const USER_HASH = process.env.REACT_APP_USER_HASH;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8002';
+const USER_HASH = process.env.REACT_APP_USER_HASH || 'CHANGE_ME_USER_HASH';
 
-// 🔥 Shared headers for all requests
+// Common headers for all API calls
 const getHeaders = () => ({
-  "Content-Type": "application/json",
-  "x-user-hash": USER_HASH
+  'Content-Type': 'application/json',
+  'x-user-hash': USER_HASH,
 });
 
 export default function Services() {
@@ -43,8 +42,8 @@ export default function Services() {
       });
 
       if (response.status === 401) {
-        console.error("401 Unauthorized – Missing x-user-hash");
-        toast.error("Unauthorized. User hash missing.");
+        console.error('401 from /api/services – check REACT_APP_USER_HASH');
+        toast.error('Unauthorized: missing or wrong user hash');
         return;
       }
 
@@ -66,12 +65,14 @@ export default function Services() {
     try {
       const response = await fetch(`${BACKEND_URL}/api/services/${serviceId}`, {
         method: 'DELETE',
-        headers: getHeaders(), // 🔥 MUST include hash here too
+        headers: getHeaders(),
       });
 
       if (response.ok) {
         toast.success('Service deleted successfully');
         fetchServices();
+      } else if (response.status === 401) {
+        toast.error('Unauthorized: missing or wrong user hash');
       } else {
         toast.error('Failed to delete service');
       }
@@ -123,11 +124,12 @@ export default function Services() {
   };
 
   const filteredServices = services.filter(service => {
-    const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         service.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch =
+      service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || service.status === statusFilter;
     const matchesType = typeFilter === 'all' || service.service_type === typeFilter;
-    
+
     return matchesSearch && matchesStatus && matchesType;
   });
 
@@ -210,7 +212,6 @@ export default function Services() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredServices.map((service) => (
             <div key={service.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
@@ -227,14 +228,17 @@ export default function Services() {
                 </div>
               </div>
 
+              {/* Description */}
               <p className="text-gray-600 text-sm mb-4 line-clamp-2">{service.description}</p>
 
+              {/* Status Badge */}
               <div className="mb-4">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusColor(service.status)}`}>
                   {service.status}
                 </span>
               </div>
 
+              {/* Service URL */}
               {service.service_url && (
                 <div className="mb-4">
                   <a
@@ -248,6 +252,7 @@ export default function Services() {
                 </div>
               )}
 
+              {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                 <span className="text-xs text-gray-500">
                   Created {new Date(service.created_at).toLocaleDateString()}
@@ -269,7 +274,6 @@ export default function Services() {
                   </button>
                 </div>
               </div>
-
             </div>
           ))}
         </div>
