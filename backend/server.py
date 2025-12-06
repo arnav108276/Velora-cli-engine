@@ -16,15 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import base64
 # Load Velora CLI config (to read docker username)
-def load_velora_cli_config():
-    config_path = Path.home() / '.velora' / 'config.json'
-    if config_path.exists():
-        try:
-            with open(config_path, 'r') as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
+
 
 # VELORA_CONFIG = load_velora_cli_config()
 ROOT_DIR = Path(__file__).parent

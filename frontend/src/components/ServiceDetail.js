@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8002';
+const BACKEND_URL ='http://localhost:8002';
 
 export default function ServiceDetail() {
   const { serviceId } = useParams();

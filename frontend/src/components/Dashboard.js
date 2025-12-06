@@ -10,8 +10,8 @@ import {
   AlertCircle 
 } from 'lucide-react';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8002';
-const USER_HASH = process.env.REACT_APP_USER_HASH;   // 🔥 NEW
+const BACKEND_URL ='http://localhost:8002';
+const USER_HASH = process.env.REACT_APP_USER_HASH;    // 🔥 NEW
 
 // 🔥 Standard header for all backend calls
 const getHeaders = () => ({

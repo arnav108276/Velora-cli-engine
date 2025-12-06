@@ -304,12 +304,8 @@ const deployCommand = new Command('deploy')
         console.log(`  ${chalk.cyan('Service URL')}: ${chalk.bold(deploymentInfo.url)}`);
         console.log(`  ${chalk.dim('Node IP')}: ${deploymentInfo.nodeIP}`);
         console.log(`  ${chalk.dim('NodePort')}: ${deploymentInfo.nodePort}`);
-        
-        console.log(chalk.dim('\\n💡 Tips:'));
-        console.log(chalk.dim(`  • Check pods: kubectl get pods -l app=${service.name}`));
-        console.log(chalk.dim(`  • View logs: kubectl logs -l app=${service.name} --tail=50`));
-        console.log(chalk.dim(`  • Scale deployment: kubectl scale deployment/${service.name} --replicas=3`));
-        console.log(chalk.dim(`  • Delete deployment: kubectl delete deployment/${service.name} && kubectl delete service/${service.name}-service`));
+        console.log(`  ${chalk.dim('User Hash')}: ${process.env.REACT_APP_USER_HASH}`);
+        //  console.log(chalk.dim(`  • Delete deployment: kubectl delete deployment/${service.name} && kubectl delete service/${service.name}-service`));
       }
       
     } catch (error) {
@@ -321,7 +317,7 @@ const deployCommand = new Command('deploy')
   });
 
 async function followDeployment(serviceId) {
-  const maxAttempts = 60;
+  const maxAttempts = 30;
   let attempts = 0;
   
   while (attempts < maxAttempts) {
