@@ -103,7 +103,7 @@ REACT_APP_BACKEND_URL=http://localhost:8002
 #### GitHub Personal Access Token
 1. Go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
 2. Click "Generate new token (classic)"
-3. Give it a descriptive name: "Velora IDP"
+3. Give veit a descriptive name: "Velora IDP"
 4. Select scopes:
    - ✅ `repo` (Full control of private repositories)
    - ✅ `workflow` (Update GitHub Action workflows)

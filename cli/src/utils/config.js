@@ -156,7 +156,7 @@ async function setupInteractive() {
   try {
     const api = require('./api');
     await api.healthCheck();
-    // console.log(chalk.green('✅ API connection successful!'));
+    console.log(chalk.green('✅ API connection successful!'));
   } catch (error) {
     console.log(chalk.yellow(`⚠️  API connection failed: ${error.message}`));
     console.log(chalk.dim('You can still use the CLI, but some features may not work.'));

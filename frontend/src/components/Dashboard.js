@@ -75,7 +75,7 @@ export default function Dashboard() {
       value: analytics?.total_services || 0,
       icon: Server,
       color: 'bg-blue-500',
-      change: '+12%',
+      //change: '+12%',
       changeType: 'positive'
     },
     {
@@ -83,7 +83,7 @@ export default function Dashboard() {
       value: analytics?.total_developers || 0,
       icon: Users,
       color: 'bg-green-500',
-      change: '+5%',
+      //change: '+5%',
       changeType: 'positive'
     },
     {
@@ -91,7 +91,7 @@ export default function Dashboard() {
       value: analytics?.services_by_status?.running || 0,
       icon: CheckCircle,
       color: 'bg-emerald-500',
-      change: '+8%',
+      //change: '+8%',
       changeType: 'positive'
     },
     {
@@ -99,7 +99,7 @@ export default function Dashboard() {
       value: analytics?.services_by_status?.failed || 0,
       icon: XCircle,
       color: 'bg-red-500',
-      change: '-3%',
+      //change: '-3%',
       changeType: 'negative'
     }
   ];
@@ -126,7 +126,7 @@ export default function Dashboard() {
                   }`}>
                     {stat.change}
                   </span>
-                  <span className="text-sm text-gray-500 ml-1">from last month</span>
+                  <span className="text-sm text-gray-500 ml-1"> </span>
                 </div>
               </div>
               <div className={`p-3 rounded-full ${stat.color}`}>

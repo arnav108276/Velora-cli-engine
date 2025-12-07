@@ -77,7 +77,7 @@ export default function AdminDashboard() {
       value: analytics?.total_services || 0,
       icon: Server,
       color: 'bg-blue-500',
-      change: '+12%',
+      //change: '+12%',
       changeType: 'positive'
     },
     {
@@ -85,7 +85,7 @@ export default function AdminDashboard() {
       value: analytics?.total_developers || 0,
       icon: Users,
       color: 'bg-green-500',
-      change: '+5%',
+      //change: '+5%',
       changeType: 'positive'
     },
     {
@@ -93,7 +93,7 @@ export default function AdminDashboard() {
       value: services.length,
       icon: Activity,
       color: 'bg-purple-500',
-      change: '+18%',
+      //change: '+18%',
       changeType: 'positive'
     },
     {
@@ -103,7 +103,7 @@ export default function AdminDashboard() {
         '100%',
       icon: CheckCircle,
       color: 'bg-emerald-500',
-      change: '+2%',
+      //change: '+2%',
       changeType: 'positive'
     }
   ];
@@ -145,7 +145,7 @@ export default function AdminDashboard() {
                   }`}>
                     {stat.change}
                   </span>
-                  <span className="text-sm text-gray-500 ml-1">from last month</span>
+                  <span className="text-sm text-gray-500 ml-1"> </span>
                 </div>
               </div>
               <div className={`p-3 rounded-full ${stat.color}`}>

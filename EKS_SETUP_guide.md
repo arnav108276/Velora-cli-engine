@@ -90,6 +90,7 @@ aws sts get-caller-identity
 
 Create a cluster with 2 nodes:
 ```bash
+
 eksctl create cluster \
   --name arnav-velora1 \
   --region ap-south-1 \
