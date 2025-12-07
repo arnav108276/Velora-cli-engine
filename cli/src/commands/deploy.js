@@ -301,54 +301,32 @@ async function checkPodStatus(serviceName) {
   }
 }
 
-// ✅ FIX: Show AWS security group instructions
-function showSecurityGroupInstructions(nodePort) {
-  // console.log(chalk.yellow('\n⚠️  IMPORTANT: AWS Security Group Configuration'));
-  // console.log(chalk.dim('If you cannot access the service, ensure your EKS node security group allows inbound traffic:'));
-  // console.log(chalk.dim(`\n1. Go to AWS EC2 Console > Security Groups`));
-  // console.log(chalk.dim(`2. Find the security group attached to your EKS worker nodes`));
-  // console.log(chalk.dim(`   (Usually named: eks-cluster-sg-<cluster-name>-*)`));
-  // console.log(chalk.dim(`3. Add an inbound rule:`));
-  // console.log(chalk.dim(`   - Type: Custom TCP`));
-  // console.log(chalk.dim(`   - Port Range: ${nodePort}`));
-  // console.log(chalk.dim(`   - Source: 0.0.0.0/0 (or your IP for security)`));
-  // console.log(chalk.dim(`\n4. Alternatively, allow the entire NodePort range: 30000-32767`));
-}
-
 // Main deployment function
 async function deployToEKS(serviceName, service, clusterName, region) {
   const spinner = ora('Deploying to AWS EKS...').start();
-  
   try {
     // Configure kubectl
     spinner.text = 'Configuring kubectl for EKS cluster...';
     await execAsync(`aws eks update-kubeconfig --name ${clusterName} --region ${region}`);
     spinner.succeed(chalk.green('✅ kubectl configured for EKS cluster'));
-    
     // Create temp directory
     const tmpDir = path.join(os.tmpdir(), `velora-${serviceName}-${Date.now()}`);
     fs.mkdirSync(tmpDir, { recursive: true });
-    
     // Validate Docker image
     if (!service.docker_image) {
       spinner.fail(chalk.red('❌ No Docker image found for this service'));
       throw new Error('Service must have a Docker image. Create service with --location flag first.');
     }
-    
     const dockerImage = `arnavgoel/${service.name}:latest`;
-    
     // Detect port
     spinner.text = 'Detecting container port...';
     const detectedPort = await detectPortFromDockerfile(dockerImage);
-    
     // Generate manifests
     spinner.start('Generating Kubernetes manifests...');
     const deploymentYaml = generateK8sDeployment(serviceName, dockerImage, service.service_type, detectedPort);
     const serviceYaml = generateK8sService(serviceName, service.service_type, detectedPort);
-    
     const deploymentPath = path.join(tmpDir, 'deployment.yaml');
     const servicePath = path.join(tmpDir, 'service.yaml');
-    
     fs.writeFileSync(deploymentPath, deploymentYaml);
     fs.writeFileSync(servicePath, serviceYaml);
     spinner.succeed(chalk.green('✅ Kubernetes manifests generated'));
@@ -396,8 +374,6 @@ async function deployToEKS(serviceName, service, clusterName, region) {
     // Cleanup
     fs.rmSync(tmpDir, { recursive: true, force: true });
     
-    // Show security group instructions
-    showSecurityGroupInstructions(nodePort);
     
     return {
       nodeIP,
@@ -460,9 +436,6 @@ const deployCommand = new Command('deploy')
       const kubectlInstalled = await checkKubectl();
       if (!kubectlInstalled) {
         console.error(chalk.red('❌ kubectl is not installed'));
-        console.log(chalk.yellow('\nPlease install kubectl:'));
-        console.log(chalk.dim('  macOS: brew install kubectl'));
-        console.log(chalk.dim('  Linux: curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"'));
         process.exit(1);
       }
       
@@ -509,41 +482,23 @@ const deployCommand = new Command('deploy')
         
         if (!clusterActive) {
           console.error(chalk.red(`❌ EKS cluster "${options.cluster}" not found or not active in region ${options.region}`));
-          console.log(chalk.yellow('\n📋 Setup Instructions:'));
-          console.log(chalk.dim('\n1. Install eksctl:'));
-          console.log(chalk.dim('   macOS: brew tap weaveworks/tap && brew install weaveworks/tap/eksctl'));
-          console.log(chalk.dim('   Linux: curl --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp && sudo mv /tmp/eksctl /usr/local/bin'));
-          console.log(chalk.dim('\n2. Create EKS cluster:'));
-          console.log(chalk.dim(`   eksctl create cluster --name ${options.cluster} --region ${options.region} --nodes 2 --node-type t3.medium`));
-          console.log(chalk.dim('\n3. This will take ~15-20 minutes'));
-          console.log(chalk.dim('\n4. Once complete, run this deploy command again'));
+
           process.exit(1);
         }
         
         console.log(chalk.green(`✅ EKS cluster is active`));
-        
         // Deploy
         console.log(chalk.blue(`\n🚀 Deploying ${service.name} to EKS...\n`));
         const deploymentInfo = await deployToEKS(service.name, service, options.cluster, options.region);
-        
         console.log(chalk.green('\n🎉 Deployment completed successfully!\n'));
         console.log(chalk.bold('📋 Access Information:'));
         console.log(`  ${chalk.cyan('Service URL')}: ${chalk.bold(deploymentInfo.url)}`);
         console.log(`  ${chalk.dim('Node IP')}: ${deploymentInfo.nodeIP}`);
         console.log(`  ${chalk.dim('NodePort')}: ${deploymentInfo.nodePort}`);
         console.log(`  ${chalk.dim('Container Port')}: ${deploymentInfo.containerPort}`);
-        
-        console.log(chalk.blue('\n🧪 Testing Service Access:'));
-        console.log(chalk.dim(`Try: curl ${deploymentInfo.url}`));
         console.log(chalk.dim(`Or visit in browser: ${deploymentInfo.url}`));
         
-        // console.log(chalk.blue('\n📊 Useful Commands:'));
-        // console.log(chalk.dim(`  • Check pods: kubectl get pods -l app=${service.name}`));
-        // console.log(chalk.dim(`  • View logs: kubectl logs -l app=${service.name} --tail=50`));
-        // console.log(chalk.dim(`  • Describe service: kubectl describe service ${service.name}-service`));
-        // console.log(chalk.dim(`  • Get endpoints: kubectl get endpoints ${service.name}-service`));
-        // console.log(chalk.dim(`  • Port forward (alternative): kubectl port-forward service/${service.name}-service 8080:${deploymentInfo.containerPort}`));
-      }
+        }
       
     } catch (error) {
       console.error(chalk.red(`\n❌ Error: ${error.message}`));
@@ -552,34 +507,4 @@ const deployCommand = new Command('deploy')
       process.exit(1);
     }
   });
-
 module.exports = deployCommand;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
