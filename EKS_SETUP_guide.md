@@ -91,46 +91,51 @@ aws sts get-caller-identity
 Create a cluster with 2 nodes:
 ```bash
 
-eksctl create cluster \
+eksctl create cluster --name arnav-velora1 --region ap-south-1 --nodes 2 --node-type t3.medium --managed
+
+# Wait for cluster to be ready (~15-20 minutes)
+
+# Get the cluster security group ID
+CLUSTER_SG=$(aws eks describe-cluster \
   --name arnav-velora1 \
   --region ap-south-1 \
-  --nodes 2 \
-  --node-type t3.medium \
-  --managed
+  --query 'cluster.resourcesVpcConfig.clusterSecurityGroupId' \
+  --output text)
+
+echo "Cluster Security Group ID: $CLUSTER_SG"
+
+# Get the node security group ID
+NODE_SG=$(aws ec2 describe-security-groups \
+  --filters "Name=tag:aws:eks:cluster-name,Values=arnav-velora1" \
+  --query 'SecurityGroups[?contains(GroupName, `node`)].GroupId' \
+  --output text \
+  --region ap-south-1)
+
+echo "Node Security Group ID: $NODE_SG"
+
+# Add inbound rule for NodePort range (30000-32767) to node security group
+aws ec2 authorize-security-group-ingress \
+  --group-id $NODE_SG \
+  --protocol tcp \
+  --port 30000-32767 \
+  --cidr 0.0.0.0/0 \
+  --region ap-south-1
+
+echo "✅ Security group configured for NodePort access (30000-32767)"
+
+# Also add rule to cluster security group for complete access
+aws ec2 authorize-security-group-ingress \
+  --group-id $CLUSTER_SG \
+  --protocol tcp \
+  --port 30000-32767 \
+  --cidr 0.0.0.0/0 \
+  --region ap-south-1 2>/dev/null || echo "Rule may already exist on cluster SG"
+
+echo "✅ Cluster setup complete with security groups configured!"
+
+
 ```
 
-**Time:** ~15-20 minutes
-
-### Option B: Custom Configuration
-
-Create a config file `velora-eks-config.yaml`:
-```yaml
-apiVersion: eksctl.io/v1alpha5
-kind: ClusterConfig
-
-metadata:
-  name: arnav-velora1
-  region: ap-south-1
-
-nodeGroups:
-  - name: velora-workers
-    instanceType: t3.medium
-    desiredCapacity: 2
-    minSize: 1
-    maxSize: 4
-    volumeSize: 20
-    ssh:
-      allow: true
-    labels:
-      role: worker
-    tags:
-      managed-by: velora
-```
-
-Then create the cluster:
-```bash
-eksctl create cluster -f velora-eks-config.yaml
-```
 
 ## Step 4: Verify Cluster
 

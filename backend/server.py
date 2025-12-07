@@ -8,13 +8,15 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import aiohttp
 import json
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import base64
+import boto3
+from botocore.exceptions import ClientError, BotoCoreError
 # Load Velora CLI config (to read docker username)
 
 
@@ -557,6 +559,419 @@ async def process_service_creation(service_id: str, user_hash: str = None):
         )
 
         logging.error(f"Service creation failed for {service_id}: {str(e)}")
+# ==========================================
+# CLOUDWATCH & ADMIN DASHBOARD ENDPOINTS
+# ==========================================
+
+class AdminAuthRequest(BaseModel):
+    password: str
+
+class CloudWatchMetricsRequest(BaseModel):
+    time_range: str = "1h"  # 1h, 24h, 7d, 30d
+
+# Admin authentication endpoint
+@api_router.post("/admin/authenticate")
+async def admin_authenticate(auth_request: AdminAuthRequest):
+    """Authenticate admin user with password"""
+    admin_password = os.getenv('ADMIN_PASSWORD', 'velora-cli-engine')
+    
+    if auth_request.password == admin_password:
+        return {
+            "authenticated": True,
+            "message": "Authentication successful"
+        }
+    else:
+        raise HTTPException(status_code=401, detail="Invalid password")
+
+# Helper function to get time range
+def get_time_range(time_range_str: str):
+    """Convert time range string to datetime objects"""
+    now = datetime.utcnow()
+    
+    time_ranges = {
+        "1h": timedelta(hours=1),
+        "24h": timedelta(hours=24),
+        "7d": timedelta(days=7),
+        "30d": timedelta(days=30)
+    }
+    
+    delta = time_ranges.get(time_range_str, timedelta(hours=1))
+    start_time = now - delta
+    
+    return start_time, now
+
+# Helper function to initialize AWS clients
+def get_aws_clients():
+    """Initialize AWS clients for CloudWatch and EKS"""
+    try:
+        aws_region = os.getenv('AWS_REGION', 'ap-south-1')
+        aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        
+        if not aws_access_key or not aws_secret_key:
+            raise HTTPException(
+                status_code=500, 
+                detail="AWS credentials not configured. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env file"
+            )
+        
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=aws_region
+        )
+        
+        cloudwatch = session.client('cloudwatch')
+        eks = session.client('eks')
+        ec2 = session.client('ec2')
+        
+        return cloudwatch, eks, ec2, aws_region
+    except Exception as e:
+        logging.error(f"Failed to initialize AWS clients: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to initialize AWS clients: {str(e)}")
+
+# Get CloudWatch metrics for EKS cluster
+@api_router.post("/admin/cloudwatch/metrics")
+async def get_cloudwatch_metrics(metrics_request: CloudWatchMetricsRequest):
+    """Get CloudWatch metrics for EKS cluster"""
+    try:
+        cloudwatch, eks, ec2, aws_region = get_aws_clients()
+        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora1')
+        
+        start_time, end_time = get_time_range(metrics_request.time_range)
+        
+        # Get cluster info
+        try:
+            cluster_info = eks.describe_cluster(name=cluster_name)
+            cluster_status = cluster_info['cluster']['status']
+        except ClientError as e:
+            logging.error(f"Failed to get cluster info: {str(e)}")
+            cluster_status = "Unknown"
+        
+        # Get metrics from CloudWatch
+        metrics_data = {}
+        
+        # Define metrics to fetch
+        metric_queries = [
+            {
+                "name": "node_cpu_utilization",
+                "namespace": "ContainerInsights",
+                "metric_name": "node_cpu_utilization",
+                "stat": "Average"
+            },
+            {
+                "name": "node_memory_utilization",
+                "namespace": "ContainerInsights",
+                "metric_name": "node_memory_utilization",
+                "stat": "Average"
+            },
+            {
+                "name": "node_network_total_bytes",
+                "namespace": "ContainerInsights",
+                "metric_name": "node_network_total_bytes",
+                "stat": "Sum"
+            },
+            {
+                "name": "node_filesystem_utilization",
+                "namespace": "ContainerInsights",
+                "metric_name": "node_filesystem_utilization",
+                "stat": "Average"
+            },
+            {
+                "name": "pod_cpu_utilization",
+                "namespace": "ContainerInsights",
+                "metric_name": "pod_cpu_utilization",
+                "stat": "Average"
+            },
+            {
+                "name": "pod_memory_utilization",
+                "namespace": "ContainerInsights",
+                "metric_name": "pod_memory_utilization",
+                "stat": "Average"
+            }
+        ]
+        
+        # Fetch each metric
+        for query in metric_queries:
+            try:
+                response = cloudwatch.get_metric_statistics(
+                    Namespace=query["namespace"],
+                    MetricName=query["metric_name"],
+                    Dimensions=[
+                        {
+                            'Name': 'ClusterName',
+                            'Value': cluster_name
+                        }
+                    ],
+                    StartTime=start_time,
+                    EndTime=end_time,
+                    Period=300,  # 5 minutes
+                    Statistics=[query["stat"]]
+                )
+                
+                datapoints = sorted(response['Datapoints'], key=lambda x: x['Timestamp'])
+                
+                metrics_data[query["name"]] = {
+                    "timestamps": [dp['Timestamp'].isoformat() for dp in datapoints],
+                    "values": [dp.get(query["stat"], 0) for dp in datapoints],
+                    "unit": datapoints[0].get('Unit', 'None') if datapoints else 'None'
+                }
+            except ClientError as e:
+                logging.warning(f"Failed to fetch metric {query['name']}: {str(e)}")
+                metrics_data[query["name"]] = {
+                    "timestamps": [],
+                    "values": [],
+                    "unit": "None",
+                    "error": str(e)
+                }
+        
+        # Calculate current average values
+        current_metrics = {}
+        for metric_name, metric_data in metrics_data.items():
+            if metric_data["values"]:
+                current_metrics[metric_name] = {
+                    "current": metric_data["values"][-1] if metric_data["values"] else 0,
+                    "average": sum(metric_data["values"]) / len(metric_data["values"]) if metric_data["values"] else 0,
+                    "max": max(metric_data["values"]) if metric_data["values"] else 0,
+                    "min": min(metric_data["values"]) if metric_data["values"] else 0
+                }
+            else:
+                current_metrics[metric_name] = {
+                    "current": 0,
+                    "average": 0,
+                    "max": 0,
+                    "min": 0
+                }
+        
+        return {
+            "cluster_name": cluster_name,
+            "cluster_status": cluster_status,
+            "time_range": metrics_request.time_range,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
+            "metrics": metrics_data,
+            "current_metrics": current_metrics
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Failed to fetch CloudWatch metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch metrics: {str(e)}")
+
+# Get pod statistics
+@api_router.get("/admin/pods/stats")
+async def get_pod_stats():
+    """Get pod statistics for the cluster"""
+    try:
+        # This would typically use kubectl or Kubernetes API
+        # For now, return mock data that can be replaced with real kubectl calls
+        import subprocess
+        
+        try:
+            # Try to get real pod data using kubectl
+            result = subprocess.run(
+                ['kubectl', 'get', 'pods', '--all-namespaces', '-o', 'json'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0:
+                pods_data = json.loads(result.stdout)
+                pods = pods_data.get('items', [])
+                
+                total_pods = len(pods)
+                running_pods = sum(1 for pod in pods if pod['status']['phase'] == 'Running')
+                pending_pods = sum(1 for pod in pods if pod['status']['phase'] == 'Pending')
+                failed_pods = sum(1 for pod in pods if pod['status']['phase'] == 'Failed')
+                
+                # Get pod resource usage
+                pod_details = []
+                for pod in pods[:20]:  # Limit to first 20 pods
+                    pod_name = pod['metadata']['name']
+                    namespace = pod['metadata']['namespace']
+                    status = pod['status']['phase']
+                    
+                    # Get container count
+                    containers = pod['spec'].get('containers', [])
+                    container_count = len(containers)
+                    
+                    pod_details.append({
+                        "name": pod_name,
+                        "namespace": namespace,
+                        "status": status,
+                        "containers": container_count,
+                        "node": pod['spec'].get('nodeName', 'N/A'),
+                        "created": pod['metadata']['creationTimestamp']
+                    })
+                
+                return {
+                    "total_pods": total_pods,
+                    "running_pods": running_pods,
+                    "pending_pods": pending_pods,
+                    "failed_pods": failed_pods,
+                    "pod_details": pod_details,
+                    "data_source": "kubectl"
+                }
+        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError) as e:
+            logging.warning(f"kubectl command failed: {str(e)}, using CloudWatch data")
+        
+        # Fallback to CloudWatch if kubectl fails
+        cloudwatch, eks, ec2, aws_region = get_aws_clients()
+        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora1')
+        
+        # Get pod count from CloudWatch
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(minutes=5)
+        
+        try:
+            response = cloudwatch.get_metric_statistics(
+                Namespace='ContainerInsights',
+                MetricName='pod_number_of_containers',
+                Dimensions=[
+                    {
+                        'Name': 'ClusterName',
+                        'Value': cluster_name
+                    }
+                ],
+                StartTime=start_time,
+                EndTime=end_time,
+                Period=300,
+                Statistics=['Sum']
+            )
+            
+            datapoints = response.get('Datapoints', [])
+            total_pods = int(datapoints[-1]['Sum']) if datapoints else 0
+            
+            return {
+                "total_pods": total_pods,
+                "running_pods": total_pods,  # Approximate
+                "pending_pods": 0,
+                "failed_pods": 0,
+                "pod_details": [],
+                "data_source": "cloudwatch",
+                "note": "Install kubectl for detailed pod information"
+            }
+        except Exception as e:
+            logging.warning(f"CloudWatch pod metrics failed: {str(e)}")
+            return {
+                "total_pods": 0,
+                "running_pods": 0,
+                "pending_pods": 0,
+                "failed_pods": 0,
+                "pod_details": [],
+                "data_source": "unavailable",
+                "error": "Unable to fetch pod statistics. Ensure CloudWatch Container Insights is enabled."
+            }
+            
+    except Exception as e:
+        logging.error(f"Failed to fetch pod stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch pod stats: {str(e)}")
+
+# Get cost estimate
+@api_router.get("/admin/cost/estimate")
+async def get_cost_estimate():
+    """Get estimated cost for the cluster"""
+    try:
+        cloudwatch, eks, ec2, aws_region = get_aws_clients()
+        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora1')
+        
+        # Get cluster nodes
+        try:
+            cluster_info = eks.describe_cluster(name=cluster_name)
+            vpc_id = cluster_info['cluster']['resourcesVpcConfig']['vpcId']
+            
+            # Get node group info
+            nodegroups = eks.list_nodegroups(clusterName=cluster_name)
+            
+            total_cost_per_hour = 0.10  # EKS control plane cost
+            total_cost_per_month = 73  # EKS control plane cost
+            
+            node_costs = []
+            
+            for ng_name in nodegroups.get('nodegroups', []):
+                ng_info = eks.describe_nodegroup(
+                    clusterName=cluster_name,
+                    nodegroupName=ng_name
+                )
+                
+                nodegroup = ng_info['nodegroup']
+                instance_types = nodegroup.get('instanceTypes', ['t3.medium'])
+                desired_size = nodegroup.get('scalingConfig', {}).get('desiredSize', 2)
+                
+                # Cost per instance (t3.medium in ap-south-1)
+                instance_costs = {
+                    't3.medium': 0.0416,
+                    't3.small': 0.0208,
+                    't3.large': 0.0832,
+                    't3.xlarge': 0.1664
+                }
+                
+                instance_type = instance_types[0] if instance_types else 't3.medium'
+                cost_per_hour = instance_costs.get(instance_type, 0.0416)
+                
+                node_cost_hour = cost_per_hour * desired_size
+                node_cost_month = node_cost_hour * 730  # Average hours per month
+                
+                total_cost_per_hour += node_cost_hour
+                total_cost_per_month += node_cost_month
+                
+                node_costs.append({
+                    "nodegroup": ng_name,
+                    "instance_type": instance_type,
+                    "node_count": desired_size,
+                    "cost_per_hour": round(node_cost_hour, 4),
+                    "cost_per_month": round(node_cost_month, 2)
+                })
+            
+            return {
+                "cluster_name": cluster_name,
+                "control_plane_cost": {
+                    "per_hour": 0.10,
+                    "per_month": 73
+                },
+                "node_costs": node_costs,
+                "total_cost": {
+                    "per_hour": round(total_cost_per_hour, 4),
+                    "per_day": round(total_cost_per_hour * 24, 2),
+                    "per_month": round(total_cost_per_month, 2)
+                },
+                "currency": "USD",
+                "region": aws_region
+            }
+            
+        except ClientError as e:
+            logging.error(f"Failed to get cost estimate: {str(e)}")
+            # Return default estimate if API calls fail
+            return {
+                "cluster_name": cluster_name,
+                "control_plane_cost": {
+                    "per_hour": 0.10,
+                    "per_month": 73
+                },
+                "node_costs": [
+                    {
+                        "nodegroup": "default",
+                        "instance_type": "t3.medium",
+                        "node_count": 2,
+                        "cost_per_hour": 0.0832,
+                        "cost_per_month": 60.74
+                    }
+                ],
+                "total_cost": {
+                    "per_hour": 0.1832,
+                    "per_day": 4.40,
+                    "per_month": 133.74
+                },
+                "currency": "USD",
+                "region": aws_region,
+                "note": "Estimated costs based on default configuration"
+            }
+            
+    except Exception as e:
+        logging.error(f"Failed to calculate cost estimate: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to calculate costs: {str(e)}")
+
 # Health check
 @api_router.get("/health")
 async def health_check():
