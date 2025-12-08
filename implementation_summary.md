@@ -22,7 +22,7 @@ This implementation adds AWS CloudWatch metrics integration to the Velora Admin 
 ```bash
 # Create cluster and configure security groups automatically
 eksctl create cluster \
-  --name arnav-velora1 \
+  --name arnav-velora2 \
   --region ap-south-1 \
   --nodes 2 \
   --node-type t3.medium \
@@ -30,7 +30,7 @@ eksctl create cluster \
 
 # Auto-configure security groups
 NODE_SG=$(aws ec2 describe-security-groups \
-  --filters "Name=tag:aws:eks:cluster-name,Values=arnav-velora1" \
+  --filters "Name=tag:aws:eks:cluster-name,Values=arnav-velora2" \
   --query 'SecurityGroups[?contains(GroupName, `node`)].GroupId' \
   --output text \
   --region ap-south-1)
@@ -148,7 +148,7 @@ AWS_ACCESS_KEY_ID=your_aws_access_key_here
 AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
 
 # EKS Cluster Configuration (NEW)
-EKS_CLUSTER_NAME=arnav-velora1
+EKS_CLUSTER_NAME=arnav-velora2
 
 # Admin Dashboard Password (NEW)
 ADMIN_PASSWORD=velora-cli-engine
@@ -197,7 +197,7 @@ AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY_HERE
 AWS_SECRET_ACCESS_KEY=YOUR_SECRET_KEY_HERE
 
 # EKS Configuration
-EKS_CLUSTER_NAME=arnav-velora1
+EKS_CLUSTER_NAME=arnav-velora2
 
 # Admin Password
 ADMIN_PASSWORD=velora-cli-engine
@@ -213,7 +213,7 @@ pip install -r requirements.txt
 # Enable logging on EKS cluster
 eksctl utils update-cluster-logging \
   --enable-types=all \
-  --cluster=arnav-velora1 \
+  --cluster=arnav-velora2 \
   --region=ap-south-1 \
   --approve
 
@@ -410,7 +410,7 @@ For questions or issues:
 
 All requirements have been met:
 1. ✅ Automated security group configuration for NodePort access
-2. ✅ CloudWatch metrics integration for arnav-velora1 cluster
+2. ✅ CloudWatch metrics integration for arnav-velora2 cluster
 3. ✅ Pod usage statistics and cost tracking
 4. ✅ Password-protected admin dashboard
 5. ✅ Developer management capabilities

@@ -79,14 +79,6 @@ export default function Dashboard() {
       changeType: 'positive'
     },
     {
-      name: 'Active Developers',
-      value: analytics?.total_developers || 0,
-      icon: Users,
-      color: 'bg-green-500',
-      //change: '+5%',
-      changeType: 'positive'
-    },
-    {
       name: 'Running Services',
       value: analytics?.services_by_status?.running || 0,
       icon: CheckCircle,
@@ -113,7 +105,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {stats.map((stat) => (
           <div key={stat.name} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
