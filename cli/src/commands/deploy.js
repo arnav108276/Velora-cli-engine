@@ -423,7 +423,7 @@ async function followDeployment(serviceId) {
 const deployCommand = new Command('deploy')
   .description('Deploy a service to AWS EKS')
   .argument('<service-name-or-id>', 'Service name or ID')
-  .option('-c, --cluster <name>', 'EKS cluster name', 'arnav-velora1')
+  .option('-c, --cluster <name>', 'EKS cluster name', 'arnav-velora2')
   .option('-r, --region <region>', 'AWS region', 'ap-south-1')
   .option('-f, --follow', 'Follow deployment progress')
   .option('--rollback', 'Rollback to previous version')

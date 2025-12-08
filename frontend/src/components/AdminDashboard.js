@@ -34,15 +34,12 @@ import {
   Pie,
   Cell
 } from 'recharts';
-
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8002';
 const USER_HASH = process.env.REACT_APP_USER_HASH;
-
 const getHeaders = () => ({
-  "Content-Type": "application/json",
-  "x-user-hash": USER_HASH
+  'Content-Type': 'application/json',
+  'x-user-hash': USER_HASH,
 });
-
 export default function AdminDashboard() {
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -50,7 +47,6 @@ export default function AdminDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authenticating, setAuthenticating] = useState(false);
-
   // Dashboard state
   const [analytics, setAnalytics] = useState(null);
   const [services, setServices] = useState([]);
@@ -60,7 +56,7 @@ export default function AdminDashboard() {
   const [costEstimate, setCostEstimate] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Time range selector
   const [timeRange, setTimeRange] = useState('1h');
 
@@ -73,7 +69,7 @@ export default function AdminDashboard() {
       const response = await fetch(`${BACKEND_URL}/api/admin/authenticate`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ password }),
       });
 
       if (response.ok) {
@@ -102,7 +98,7 @@ export default function AdminDashboard() {
         developersRes,
         cloudWatchRes,
         podStatsRes,
-        costRes
+        costRes,
       ] = await Promise.all([
         fetch(`${BACKEND_URL}/api/analytics/dashboard`, { headers: getHeaders() }),
         fetch(`${BACKEND_URL}/api/services`, { headers: getHeaders() }),
@@ -110,17 +106,17 @@ export default function AdminDashboard() {
         fetch(`${BACKEND_URL}/api/admin/cloudwatch/metrics`, {
           method: 'POST',
           headers: getHeaders(),
-          body: JSON.stringify({ time_range: timeRange })
+          body: JSON.stringify({ time_range: timeRange }),
         }),
         fetch(`${BACKEND_URL}/api/admin/pods/stats`, { headers: getHeaders() }),
-        fetch(`${BACKEND_URL}/api/admin/cost/estimate`, { headers: getHeaders() })
+        fetch(`${BACKEND_URL}/api/admin/cost/estimate`, { headers: getHeaders() }),
       ]);
 
       if (analyticsRes.ok && servicesRes.ok && developersRes.ok) {
         const [analyticsData, servicesData, developersData] = await Promise.all([
           analyticsRes.json(),
           servicesRes.json(),
-          developersRes.json()
+          developersRes.json(),
         ]);
 
         setAnalytics(analyticsData);
@@ -142,7 +138,6 @@ export default function AdminDashboard() {
         const costData = await costRes.json();
         setCostEstimate(costData);
       }
-
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
@@ -169,7 +164,7 @@ export default function AdminDashboard() {
       const response = await fetch(`${BACKEND_URL}/api/admin/cloudwatch/metrics`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ time_range: range })
+        body: JSON.stringify({ time_range: range }),
       });
 
       if (response.ok) {
@@ -180,7 +175,6 @@ export default function AdminDashboard() {
       console.error('Failed to fetch CloudWatch metrics:', error);
     }
   };
-
   // Login screen
   if (!isAuthenticated) {
     return (
@@ -191,14 +185,12 @@ export default function AdminDashboard() {
               <Lock className="h-12 w-12 text-blue-600" />
             </div>
           </div>
-          
           <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">
             Admin Dashboard
           </h2>
           <p className="text-center text-gray-600 mb-6">
             Enter password to access CloudWatch metrics
           </p>
-
           <form onSubmit={handleAuthenticate}>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -218,7 +210,11 @@ export default function AdminDashboard() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                 >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -228,7 +224,6 @@ export default function AdminDashboard() {
                 <p className="text-sm text-red-600">{authError}</p>
               </div>
             )}
-
             <button
               type="submit"
               disabled={authenticating}
@@ -245,7 +240,6 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
   // Loading screen
   if (loading && !cloudWatchMetrics) {
     return (
@@ -257,7 +251,6 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
   // Prepare chart data for CloudWatch metrics
   const prepareChartData = (metricData) => {
     if (!metricData || !metricData.timestamps || !metricData.values) return [];
@@ -267,9 +260,7 @@ export default function AdminDashboard() {
       value: metricData.values[index]
     }));
   };
-
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
-
   // Stats cards data
   const stats = [
     {
@@ -278,41 +269,21 @@ export default function AdminDashboard() {
       icon: Server,
       color: 'bg-blue-500',
       subtext: `${podStats?.running_pods || 0} running`
-    },
-    {
-      name: 'CPU Usage',
-      value: cloudWatchMetrics?.current_metrics?.node_cpu_utilization?.current 
-        ? `${cloudWatchMetrics.current_metrics.node_cpu_utilization.current.toFixed(1)}%` 
-        : 'N/A',
-      icon: Cpu,
-      color: 'bg-green-500',
-      subtext: 'Average across nodes'
-    },
-    {
-      name: 'Memory Usage',
-      value: cloudWatchMetrics?.current_metrics?.node_memory_utilization?.current 
-        ? `${cloudWatchMetrics.current_metrics.node_memory_utilization.current.toFixed(1)}%` 
-        : 'N/A',
-      icon: HardDrive,
-      color: 'bg-purple-500',
-      subtext: 'Average across nodes'
     }
   ];
-
   return (
-    <div className="p-8 bg-gray-50 mi n-h-screen">
+    <div className="p-8 bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
           <p className="text-gray-600 mt-1">
-            Cluster: {cloudWatchMetrics?.cluster_name || 'arnav-velora1'} 
+            Cluster: {cloudWatchMetrics?.cluster_name || 'arnav-velora2'} 
             {cloudWatchMetrics?.cluster_status && (
               <span className="ml-2 text-sm text-green-600">● {cloudWatchMetrics.cluster_status}</span>
             )}
           </p>
         </div>
-        
         <div className="flex items-center space-x-4">
           {/* Time Range Selector */}
           <div className="flex bg-white rounded-lg shadow-sm border border-gray-200">
@@ -324,13 +295,11 @@ export default function AdminDashboard() {
                   timeRange === range
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-700 hover:bg-gray-100'
-                } ${range === '1h' ? 'rounded-l-lg' : ''} ${range === '30d' ? 'rounded-r-lg' : ''}`}
-              >
+                } ${range === '1h' ? 'rounded-l-lg' : ''} ${range === '30d' ? 'rounded-r-lg' : ''}`}>
                 {range}
               </button>
             ))}
           </div>
-          
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -341,9 +310,8 @@ export default function AdminDashboard() {
           </button>
         </div>
       </div>
-
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
         {stats.map((stat) => (
           <div key={stat.name} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
@@ -358,12 +326,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* CloudWatch Metrics Charts */}
-      {cloudWatchMetrics && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-           {/* Pod Statistics */}
+        {/* Pod Statistics */}
         {podStats && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Pod Statistics</h3>
@@ -374,8 +337,7 @@ export default function AdminDashboard() {
                   <span className="text-sm font-medium">Running</span>
                 </div>
                 <span className="text-lg font-bold text-green-600">{podStats.running_pods}</span>
-              </div>
-              
+              </div> 
               <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
                 <div className="flex items-center">
                   <Clock className="h-5 w-5 text-yellow-600 mr-2" />
@@ -383,7 +345,6 @@ export default function AdminDashboard() {
                 </div>
                 <span className="text-lg font-bold text-yellow-600">{podStats.pending_pods}</span>
               </div>
-              
               <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                 <div className="flex items-center">
                   <XCircle className="h-5 w-5 text-red-600 mr-2" />
@@ -391,186 +352,15 @@ export default function AdminDashboard() {
                 </div>
                 <span className="text-lg font-bold text-red-600">{podStats.failed_pods}</span>
               </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <p className="text-sm text-gray-500">
-                  Data source: <span className="font-medium">{podStats.data_source}</span>
-                </p>
-                {podStats.note && (
-                  <p className="text-xs text-gray-400 mt-1">{podStats.note}</p>
-                )}
-              </div>
             </div>
           </div>
         )}
-
-          {/* CPU Utilization Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Cpu className="h-5 w-5 mr-2 text-blue-600" />
-              CPU Utilization
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={prepareChartData(cloudWatchMetrics.metrics.node_cpu_utilization)}>
-                <defs>
-                  <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="value" stroke="#3B82F6" fillOpacity={1} fill="url(#colorCpu)" />
-              </AreaChart>
-            </ResponsiveContainer>
-            <p className="text-sm text-gray-500 mt-2">
-              Avg: {cloudWatchMetrics.current_metrics.node_cpu_utilization.average.toFixed(2)}% | 
-              Max: {cloudWatchMetrics.current_metrics.node_cpu_utilization.max.toFixed(2)}%
-            </p>
-          </div>
-
-          {/* Memory Utilization Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <HardDrive className="h-5 w-5 mr-2 text-purple-600" />
-              Memory Utilization
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={prepareChartData(cloudWatchMetrics.metrics.node_memory_utilization)}>
-                <defs>
-                  <linearGradient id="colorMemory" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="value" stroke="#8B5CF6" fillOpacity={1} fill="url(#colorMemory)" />
-              </AreaChart>
-            </ResponsiveContainer>
-            <p className="text-sm text-gray-500 mt-2">
-              Avg: {cloudWatchMetrics.current_metrics.node_memory_utilization.average.toFixed(2)}% | 
-              Max: {cloudWatchMetrics.current_metrics.node_memory_utilization.max.toFixed(2)}%
-            </p>
-          </div>
-
-          {/* Network Traffic Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Network className="h-5 w-5 mr-2 text-green-600" />
-              Network Traffic
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={prepareChartData(cloudWatchMetrics.metrics.node_network_total_bytes)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="value" stroke="#10B981" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-            <p className="text-sm text-gray-500 mt-2">
-              Total bytes transferred across the cluster
-            </p>
-          </div>
-          
-        {/* Cost Breakdown */}
-        {costEstimate && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <DollarSign className="h-5 w-5 mr-2 text-green-600" />
-              Cost Breakdown
-            </h3>
-            <div className="space-y-4">
-              {/* Control Plane */}
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium text-blue-900">EKS Control Plane</span>
-                  <span className="text-lg font-bold text-blue-600">
-                    ${costEstimate.control_plane_cost.per_month}
-                  </span>
-                </div>
-                <span className="text-xs text-blue-600">
-                  ${costEstimate.control_plane_cost.per_hour}/hour
-                </span>
-              </div>
-
-              {/* Node Groups */}
-              {costEstimate.node_costs.map((node, idx) => (
-                <div key={idx} className="p-3 bg-purple-50 rounded-lg">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium text-purple-900">
-                      {node.nodegroup} ({node.instance_type})
-                    </span>
-                    <span className="text-lg font-bold text-purple-600">
-                      ${node.cost_per_month}
-                    </span>
-                  </div>
-                  <span className="text-xs text-purple-600">
-                    {node.node_count} nodes × ${node.cost_per_hour}/hour
-                  </span>
-                </div>
-              ))}
-
-              {/* Total */}
-              <div className="pt-4 border-t border-gray-200">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-base font-semibold text-gray-900">Total Cost</span>
-                  <span className="text-2xl font-bold text-green-600">
-                    ${costEstimate.total_cost.per_month}/mo
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>Per hour: ${costEstimate.total_cost.per_hour}</span>
-                  <span>Per day: ${costEstimate.total_cost.per_day}</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  Region: {costEstimate.region} | Currency: {costEstimate.currency}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-          {/* Disk Utilization Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Gauge className="h-5 w-5 mr-2 text-orange-600" />
-              Disk Utilization
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={prepareChartData(cloudWatchMetrics.metrics.node_filesystem_utilization)}>
-                <defs>
-                  <linearGradient id="colorDisk" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="value" stroke="#F59E0B" fillOpacity={1} fill="url(#colorDisk)" />
-              </AreaChart>
-            </ResponsiveContainer>
-            <p className="text-sm text-gray-500 mt-2">
-              Avg: {cloudWatchMetrics.current_metrics.node_filesystem_utilization.average.toFixed(2)}% | 
-              Max: {cloudWatchMetrics.current_metrics.node_filesystem_utilization.max.toFixed(2)}%
-            </p>
-          </div>
+      </div>
+      {/* CloudWatch Metrics Charts */}
+      {cloudWatchMetrics && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         </div>
       )}
-
-      {/* Pod Statistics & Cost Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-       
-      </div>
-
       {/* Pod Details Table (if available) */}
       {podStats?.pod_details && podStats.pod_details.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
@@ -629,43 +419,8 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-
       {/* Developer Management & Services Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Developer Activity */}
-        {developers && developers.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Users className="h-5 w-5 mr-2 text-blue-600" />
-              Developer Activity
-            </h3>
-            <div className="space-y-4">
-              {developers.slice(0, 5).map((developer) => {
-                const developerServices = services.filter(s => s.developer_id === developer.id);
-                return (
-                  <div key={developer.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-white">
-                          {developer.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{developer.name}</p>
-                        <p className="text-xs text-gray-500">{developer.email}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-blue-600">{developerServices.length}</p>
-                      <p className="text-xs text-gray-500">services</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Services by Type */}
         {analytics && analytics.services_by_type && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

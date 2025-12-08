@@ -635,7 +635,7 @@ async def get_cloudwatch_metrics(metrics_request: CloudWatchMetricsRequest):
     """Get CloudWatch metrics for EKS cluster"""
     try:
         cloudwatch, eks, ec2, aws_region = get_aws_clients()
-        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora1')
+        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora2')
         
         start_time, end_time = get_time_range(metrics_request.time_range)
         
@@ -818,7 +818,7 @@ async def get_pod_stats():
         
         # Fallback to CloudWatch if kubectl fails
         cloudwatch, eks, ec2, aws_region = get_aws_clients()
-        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora1')
+        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora2')
         
         # Get pod count from CloudWatch
         end_time = datetime.utcnow()
@@ -874,7 +874,7 @@ async def get_cost_estimate():
     """Get estimated cost for the cluster"""
     try:
         cloudwatch, eks, ec2, aws_region = get_aws_clients()
-        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora1')
+        cluster_name = os.getenv('EKS_CLUSTER_NAME', 'arnav-velora2')
         
         # Get cluster nodes
         try:

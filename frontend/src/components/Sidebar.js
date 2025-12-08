@@ -15,8 +15,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Services', href: '/services', icon: Server },
   { name: 'Create Service', href: '/services/create', icon: Plus },
-  { name: 'Admin Dashboard', href: '/admin', icon: BarChart3 },
-  { name: 'Developers', href: '/developers', icon: Users },
+  { name: 'Admin Dashboard', href: '/admin', icon: BarChart3 }
 ];
 
 export default function Sidebar() {
